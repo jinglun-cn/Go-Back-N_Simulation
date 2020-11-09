@@ -1,51 +1,77 @@
-// UDP client program 
-#include <arpa/inet.h> 
-#include <netinet/in.h> 
-#include <stdio.h> 
-#include <stdlib.h> 
-#include <strings.h> 
-#include <sys/socket.h> 
-#include <sys/types.h>
-#include <string.h>
-#include <fcntl.h> 
+// UDP client program
+#include <arpa/inet.h>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
 
-#define PORT 9090 
-#define MAXLINE 1500 
+#define PORT 9090
+#define MAXLINE 1500
 
 int main() {
-    int sockfd;
-    char buffer[MAXLINE]; 
-    struct sockaddr_in servaddr;  
-    int n;
-    socklen_t len; 
+    int clientSocket;
 
-    // Creating socket file descriptor 
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) { 
-        std::cout << "socket creation failed" << std::endl; 
-        exit(0); 
-    } 
-     
-    // Filling server information 
-    servaddr.sin_family = AF_INET; 
-    servaddr.sin_port = htons(PORT); 
-    servaddr.sin_addr.s_addr = inet_addr("128.186.120.181"); 
-    
-    std::cout << "\nenter a message to the echo server:" << std::endl; 
-    std::cin.getline(buffer, MAXLINE);
-     
-    // send message to server
-    sendto(sockfd, (const char*)buffer, strlen(buffer), 0, (const struct sockaddr*)&servaddr, sizeof(servaddr)); 
-    
-    // receive server's response 
-    for (int i = 0; i < MAXLINE; i++) {
-        buffer[i] = '\0';
+    sockaddr_in servaddr = {};
+
+    // Creating socket file descriptor
+    if ((clientSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        std::cout << "socket creation failed" << std::endl;
+        exit(0);
     }
- 
-    n = recvfrom(sockfd, (char*)buffer, MAXLINE, 0, (struct sockaddr*)&servaddr, &len); 
-    std::cout << "Message from server:" << std::endl;
-    std::cout << buffer << std::endl; 
-    close(sockfd);
+
+    // Filling server information
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(PORT);
+    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    int length = sizeof(servaddr);
+
+    sendto(clientSocket, (char*) "send", sizeof("send"), 0, (const sockaddr*)&servaddr, sizeof(servaddr));
+
+    int nextFrame = 0;
+
+    while (true) {
+
+        char message[MAXLINE];
+        for (auto& j : message) j = '\0';
+
+        int size = recvfrom(clientSocket, message, sizeof(message), 0, (sockaddr *)&servaddr, &length);
+        if (size < 0) {
+            std::cout << "Error reading message." << std::endl;
+            continue;
+        }
+
+        std::string finalPacket = "final packet";
+        if (std::string(message).find(finalPacket) != std::string::npos) {
+            std::cout << "Final Flag" << std::endl;
+            break;
+        }
+
+        // TODO actually verify seq order.
+        // Break frame into seqNum and packet
+        for (auto& i : message) {
+            std::cout << i;
+        }
+        std::cout << std::endl;
+
+        int seqNum = nextFrame;
+        if (seqNum == nextFrame) {
+            // Purposeful bug.
+//            if (seqNum == 13 && firstTime) {
+//                firstTime = false;
+//                continue;
+//            }
+
+            nextFrame++;
+
+            // Send ACK
+            std::string ack = std::to_string(nextFrame);
+            std::cout << "Sending ACK : " << ack << std::endl;
+            sendto(clientSocket, ack.c_str(), sizeof(ack.c_str()), 0, (const sockaddr*)&servaddr, sizeof(servaddr));
+        }
+    }
+
+    close(clientSocket);
     return 0;
-} 
+}
+
