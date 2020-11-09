@@ -1,0 +1,290 @@
+void receiver(char** data, int numFrames);
+void sender(char** data, int numFrames);
+void timer(int *i);
+
+std::list<int> outstandingFrames;
+std::vector<int> badTimers;
+int serverSocket;
+sockaddr_in serverAddr;
+sockaddr_in clientAddr;
+socklen_t sizeOfClient;
+
+int senderWindow = 4;
+
+int main() {
+
+    // Create a socket.
+    serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket < 0) {
+        std::cout << "Could not create socket." << std::endl;
+        return -1;
+    }
+
+    serverAddr = {};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
+
+    // Bind socket to ip address and port.
+    if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        std::cout << "Could not bind to socket." << std::endl;
+        return -1;
+    }
+
+    clientAddr = {};
+    sizeOfClient = sizeof(clientAddr);
+
+    // Wait for "send" message.
+    while (true) {
+        char buffer[MAXLINE];
+        for (char& i : buffer) i = '\0';
+
+        // Wait for message.
+        int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+        if (size == -1) {
+            std::cout << "Could not read packet." << std::endl;
+        } else if (strcmp(buffer, "send") != 0) {
+            std::cout << "Waiting for send command..." << std::endl;
+        } else break;
+    }
+
+    std::ifstream file("test.jpg");
+    std::vector<char> data;
+    while (!file.eof()) {
+        char c;
+        file.read(&c, 1);
+        data.push_back(c);
+        std::cout << "y";
+    }
+    void receiver(char** data, int numFrames);
+    void sender(char** data, int numFrames);
+    void timer(int *i);
+
+    std::list<int> outstandingFrames;
+    std::vector<int> badTimers;
+    int serverSocket;
+    sockaddr_in serverAddr;
+    sockaddr_in clientAddr;
+    socklen_t sizeOfClient;
+
+    int senderWindow = 4;
+
+    int main() {
+
+        // Create a socket.
+        serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+        if (serverSocket < 0) {
+            std::cout << "Could not create socket." << std::endl;
+            return -1;
+        }
+
+        serverAddr = {};
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_addr.s_addr = INADDR_ANY;
+        serverAddr.sin_port = htons(PORT);
+
+        // Bind socket to ip address and port.
+        if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+            std::cout << "Could not bind to socket." << std::endl;
+            return -1;
+        }
+
+        clientAddr = {};
+        sizeOfClient = sizeof(clientAddr);
+
+        // Wait for "send" message.
+        while (true) {
+            char buffer[MAXLINE];
+            for (char& i : buffer) i = '\0';
+
+            // Wait for message.
+            int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+            if (size == -1) {
+                std::cout << "Could not read packet." << std::endl;
+            } else if (strcmp(buffer, "send") != 0) {
+                std::cout << "Waiting for send command..." << std::endl;
+            } else break;
+        }
+
+        std::ifstream file("test.jpg");
+        std::vector<char> data;
+        while (!file.eof()) {
+            char c;
+            file.read(&c, 1);
+            data.push_back(c);
+            std::cout << "y";
+        }
+        void receiver(char** data, int numFrames);
+        void sender(char** data, int numFrames);
+        void timer(int *i);
+
+        std::list<int> outstandingFrames;
+        std::vector<int> badTimers;
+        int serverSocket;
+        sockaddr_in serverAddr;
+        sockaddr_in clientAddr;
+        socklen_t sizeOfClient;
+
+        int senderWindow = 4;
+
+        int main() {
+
+            // Create a socket.
+            serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+            if (serverSocket < 0) {
+                std::cout << "Could not create socket." << std::endl;
+                return -1;
+            }
+
+            serverAddr = {};
+            serverAddr.sin_family = AF_INET;
+            serverAddr.sin_addr.s_addr = INADDR_ANY;
+            serverAddr.sin_port = htons(PORT);
+
+            // Bind socket to ip address and port.
+            if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+                std::cout << "Could not bind to socket." << std::endl;
+                return -1;
+            }
+
+            clientAddr = {};
+            sizeOfClient = sizeof(clientAddr);
+
+            // Wait for "send" message.
+            while (true) {
+                char buffer[MAXLINE];
+                for (char& i : buffer) i = '\0';
+
+                // Wait for message.
+                int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+                if (size == -1) {
+                    std::cout << "Could not read packet." << std::endl;
+                } else if (strcmp(buffer, "send") != 0) {
+                    std::cout << "Waiting for send command..." << std::endl;
+                } else break;
+            }
+
+            std::ifstream file("test.jpg");
+            std::vector<char> data;
+            while (!file.eof()) {
+                char c;
+                file.read(&c, 1);
+                data.push_back(c);
+                std::cout << "y";
+            }
+            void receiver(char** data, int numFrames);
+            void sender(char** data, int numFrames);
+            void timer(int *i);
+
+            std::list<int> outstandingFrames;
+            std::vector<int> badTimers;
+            int serverSocket;
+            sockaddr_in serverAddr;
+            sockaddr_in clientAddr;
+            socklen_t sizeOfClient;
+
+            int senderWindow = 4;
+
+            int main() {
+
+                // Create a socket.
+                serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+                if (serverSocket < 0) {
+                    std::cout << "Could not create socket." << std::endl;
+                    return -1;
+                }
+
+                serverAddr = {};
+                serverAddr.sin_family = AF_INET;
+                serverAddr.sin_addr.s_addr = INADDR_ANY;
+                serverAddr.sin_port = htons(PORT);
+
+                // Bind socket to ip address and port.
+                if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+                    std::cout << "Could not bind to socket." << std::endl;
+                    return -1;
+                }
+
+                clientAddr = {};
+                sizeOfClient = sizeof(clientAddr);
+
+                // Wait for "send" message.
+                while (true) {
+                    char buffer[MAXLINE];
+                    for (char& i : buffer) i = '\0';
+
+                    // Wait for message.
+                    int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+                    if (size == -1) {
+                        std::cout << "Could not read packet." << std::endl;
+                    } else if (strcmp(buffer, "send") != 0) {
+                        std::cout << "Waiting for send command..." << std::endl;
+                    } else break;
+                }
+
+                std::ifstream file("test.jpg");
+                std::vector<char> data;
+                while (!file.eof()) {
+                    char c;
+                    file.read(&c, 1);
+                    data.push_back(c);
+                    std::cout << "y";
+                }
+                void receiver(char** data, int numFrames);
+                void sender(char** data, int numFrames);
+                void timer(int *i);
+
+                std::list<int> outstandingFrames;
+                std::vector<int> badTimers;
+                int serverSocket;
+                sockaddr_in serverAddr;
+                sockaddr_in clientAddr;
+                socklen_t sizeOfClient;
+
+                int senderWindow = 4;
+
+                int main() {
+
+                    // Create a socket.
+                    serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+                    if (serverSocket < 0) {
+                        std::cout << "Could not create socket." << std::endl;
+                        return -1;
+                    }
+
+                    serverAddr = {};
+                    serverAddr.sin_family = AF_INET;
+                    serverAddr.sin_addr.s_addr = INADDR_ANY;
+                    serverAddr.sin_port = htons(PORT);
+
+                    // Bind socket to ip address and port.
+                    if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+                        std::cout << "Could not bind to socket." << std::endl;
+                        return -1;
+                    }
+
+                    clientAddr = {};
+                    sizeOfClient = sizeof(clientAddr);
+
+                    // Wait for "send" message.
+                    while (true) {
+                        char buffer[MAXLINE];
+                        for (char& i : buffer) i = '\0';
+
+                        // Wait for message.
+                        int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+                        if (size == -1) {
+                            std::cout << "Could not read packet." << std::endl;
+                        } else if (strcmp(buffer, "send") != 0) {
+                            std::cout << "Waiting for send command..." << std::endl;
+                        } else break;
+                    }
+
+                    std::ifstream file("test.jpg");
+                    std::vector<char> data;
+                    while (!file.eof()) {
+                        char c;
+                        file.read(&c, 1);
+                        data.push_back(c);
+                        std::cout << "y";
+                    }
