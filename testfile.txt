@@ -1,3 +1,5 @@
+DISCLAIMER: THIS IS JUST SOME CODE I PASTD IN A FEW TIMES FROM A BROKEN VERSION OF THE PROJECT. I AM NOT ATTEMPTING TO SEND MALWARE.
+
 void receiver(char** data, int numFrames);
 void sender(char** data, int numFrames);
 void timer(int *i);

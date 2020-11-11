@@ -51,6 +51,7 @@ int main() {
 
     // Wait for "send" message.
     while (true) {
+        std::cout << "Waiting for client..." << std::endl;
         char buffer[MAXLINE];
         for (char& i : buffer) i = '\0';
 
@@ -167,13 +168,13 @@ void sender(char** data, int numFrames) {
 
         // sleep - travel time
         usleep(500000);
-
+       
+        // Timers may change i, stop change during send process.
         int currentI = i;
         if (currentI != numFrames - 1)
             outstandingFrames.push_back(i);
 
-        std::cout << "Sending: " << data[currentI] << std::endl;
-
+        std::cout << "Sending frame " << currentI << "..." << std::endl;
         // send each message.
         sendto(serverSocket, (const char*) data[currentI], MAXLINE, 0, (const sockaddr *)&clientAddr, sizeOfClient);
 

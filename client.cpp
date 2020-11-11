@@ -6,7 +6,6 @@
 #include <iostream>
 #include <sstream>
 
-#define PORT 9090
 #define MAXLINE 1500
 
 int main() {
@@ -20,12 +19,22 @@ int main() {
         exit(0);
     }
 
+    // Enter server ip and port.
+    std::string serverIp;
+    std::cout << "Enter the server IP: ";
+    std::getline(std::cin, serverIp);
+
+    int port;
+    std::cout << "Enter port number: ";
+    std::cin >> port;
+
     // Filling server information
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(PORT);
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    int length = sizeof(servaddr);
+    servaddr.sin_port = htons(port);
+    servaddr.sin_addr.s_addr = inet_addr(serverIp.c_str());
+    socklen_t length = sizeof(servaddr);
 
+    std::cout << "Sending \"send\"" << std::endl;
     sendto(clientSocket, (char*) "send", sizeof("send"), 0, (const sockaddr*)&servaddr, sizeof(servaddr));
 
     int nextFrame = 0;
@@ -41,6 +50,7 @@ int main() {
             continue;
         }
 
+        // TODO Implement F bit to exit recvfrom loop.
         std::string finalPacket = "final packet";
         if (std::string(message).find(finalPacket) != std::string::npos) {
             std::cout << "Final Flag" << std::endl;
@@ -49,11 +59,6 @@ int main() {
 
         // TODO actually verify seq order.
         // Break frame into seqNum and packet
-        for (auto& i : message) {
-            std::cout << i;
-        }
-        std::cout << std::endl;
-
         int seqNum = nextFrame;
         if (seqNum == nextFrame) {
             // Purposeful bug.
