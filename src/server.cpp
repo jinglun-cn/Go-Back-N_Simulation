@@ -10,103 +10,56 @@
 #include <fstream>
 #include <sstream>
 
-#define MAXLINE 1500
-#define PORT 9090
+#include "utils.h"
+#include "server.h"
+#include "mylog.h"
 
-void receiver(char** data, int numFrames);
-void sender(char** data, int numFrames);
-void timer(int *i);
 
 std::list<int> outstandingFrames;
 std::vector<int> badTimers;
 int serverSocket;
-sockaddr_in serverAddr;
+
 sockaddr_in clientAddr;
 socklen_t sizeOfClient;
 
 int senderWindow = 4;
 
-int main() {
 
+int InitServerSocket() {
+    struct sockaddr_in serverAddr;
     // Create a socket.
-    serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
-    if (serverSocket < 0) {
-        std::cout << "Could not create socket." << std::endl;
+    int server_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (server_socket < 0) {
+        fprintf(stderr, "Could not create socket.\n");
+        LOG("%s", strerror(errno));
         return -1;
     }
 
-    serverAddr = {};
+    // get the local ip.
+    struct hostent *hent = get_local_ip();
+
+    // init serverAddr to establelish socket.
+    memset((void*)&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(PORT);
+    serverAddr.sin_port = htons(SERVER_PORT);
+    memcpy(&serverAddr.sin_addr, hent->h_addr_list[0], hent->h_length);
 
     // Bind socket to ip address and port.
-    if (bind(serverSocket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        std::cout << "Could not bind to socket." << std::endl;
+    if (bind(server_socket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        fprintf(stderr, "Could not bind to socket.\n");
+        LOG("%s", strerror(errno));
         return -1;
     }
 
-    clientAddr = {};
-    sizeOfClient = sizeof(clientAddr);
+    // print server ip address and port for client to connect.
+    printf("Server IP: %s\n", inet_ntoa(serverAddr.sin_addr));
+    printf("Port: %d\n\n", SERVER_PORT);
 
-    // Wait for "send" message.
-    while (true) {
-        std::cout << "Waiting for client..." << std::endl;
-        char buffer[MAXLINE];
-        for (char& i : buffer) i = '\0';
+    return server_socket;
+}
 
-        // Wait for message.
-        int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
-        if (size == -1) {
-            std::cout << "Could not read packet." << std::endl;
-        } else if (strcmp(buffer, "send") != 0) {
-            std::cout << "Waiting for send command..." << std::endl;
-        } else break;
-    }
-
-    std::ifstream file("testfile.txt");
-    char c;
-    std::stringstream ss;
-    while (!file.eof()) {
-        file.get(c);
-        ss << c;
-    }
-    file.close();
-
-    char* data;
-    std::string s = ss.str();
-    data = new char[s.length()];
-    for (int i = 0; i < s.length(); i++) {
-        data[i] = s.at(i);
-    }
-
-    int numFrames = (s.length() / MAXLINE) + 1;
-    char **fileBuffer = (char **) new char[numFrames][MAXLINE];
-    for (int i = 0; i < numFrames; i++) {
-        fileBuffer[i] = new char[MAXLINE];
-        for (int j = 0; j < MAXLINE; j++) {
-            fileBuffer[i][j] = '\0';
-        }
-    }
-
-    for (int i = 0; i < numFrames; i++) {
-        fileBuffer[i] = new char[MAXLINE];
-        for (int j = 0; j < MAXLINE; j++) {
-            if (MAXLINE*i + j == s.length()) break;
-            fileBuffer[i][j] = data[MAXLINE*i + j];
-        }
-    }
-
-    // Wait for "send", then send data.
-    std::thread receive(receiver, fileBuffer, numFrames);
-    std::thread send(sender, fileBuffer, numFrames);
-    receive.join();
-    send.join();
-
-    // Close socket.
-    close(serverSocket);
-
-    return 0;
+void ListenLoop(int server_socket) {
+    
 }
 
 void receiver(char** data, int numFrames) {
@@ -232,4 +185,84 @@ char* packetToFrame(char* packet) {
     char* frame = new char[MAXLINE];
 
     return frame;
+}
+
+
+
+int main() {
+    ///////////////////////////////////////////////////////////////////////////
+    // STEP 1: create server socket.
+    ///////////////////////////////////////////////////////////////////////////
+    int server_socket = InitServerSocket();
+    if (server_socket < 0) {
+        fprintf(stderr, "Init server socket failed!\n");
+        exit(1);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // STEP 2: wait for connections from client.
+    ///////////////////////////////////////////////////////////////////////////
+
+
+    clientAddr = {};
+    sizeOfClient = sizeof(clientAddr);
+
+    // Wait for "send" message.
+    while (true) {
+        std::cout << "Waiting for client..." << std::endl;
+        char buffer[MAXLINE];
+        for (char& i : buffer) i = '\0';
+
+        // Wait for message.
+        int size = recvfrom(serverSocket, buffer, 1500, 0, (sockaddr *)&clientAddr, &sizeOfClient);
+        if (size == -1) {
+            std::cout << "Could not read packet." << std::endl;
+        } else if (strcmp(buffer, "send") != 0) {
+            std::cout << "Waiting for send command..." << std::endl;
+        } else break;
+    }
+
+    std::ifstream file("testfile.txt");
+    char c;
+    std::stringstream ss;
+    while (!file.eof()) {
+        file.get(c);
+        ss << c;
+    }
+    file.close();
+
+    char* data;
+    std::string s = ss.str();
+    data = new char[s.length()];
+    for (int i = 0; i < s.length(); i++) {
+        data[i] = s.at(i);
+    }
+
+    int numFrames = (s.length() / MAXLINE) + 1;
+    char **fileBuffer = (char **) new char[numFrames][MAXLINE];
+    for (int i = 0; i < numFrames; i++) {
+        fileBuffer[i] = new char[MAXLINE];
+        for (int j = 0; j < MAXLINE; j++) {
+            fileBuffer[i][j] = '\0';
+        }
+    }
+
+    for (int i = 0; i < numFrames; i++) {
+        fileBuffer[i] = new char[MAXLINE];
+        for (int j = 0; j < MAXLINE; j++) {
+            if (MAXLINE*i + j == s.length()) break;
+            fileBuffer[i][j] = data[MAXLINE*i + j];
+        }
+    }
+
+    // Wait for "send", then send data.
+    std::thread receive(receiver, fileBuffer, numFrames);
+    std::thread send(sender, fileBuffer, numFrames);
+    receive.join();
+    send.join();
+
+    // Close socket.
+    close(serverSocket);
+
+    return 0;
 }
