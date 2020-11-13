@@ -1,29 +1,31 @@
-#include <iostream>
+#include "server.h"
+
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <string>
-#include <list>
-#include <thread>
+
 #include <cstring>
-#include <vector>
 #include <fstream>
-#include <sstream>
+#include <iostream>
+#include <list>
 #include <random>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
 
-#include "utils.h"
-#include "server.h"
 #include "mylog.h"
+#include "utils.h"
 
-std::map<uint32_t, ClientHandler*> *clients;
-AtomicPKGQueue *global_wait_queue;  
+std::map<uint32_t, ClientHandler *> *global_clients;
+AtomicPKGQueue *global_wait_queue;
 AtomicPKGQueue *global_submit_queue;
 
 // simulate something.
 bool ShouldLost() {
     int x = rand() % 100;
     if (x < LOST_ERROR_PERCENT) {
-        return true; // should lost.
+        return true;  // should lost.
     }
     return false;
 }
@@ -31,7 +33,7 @@ bool ShouldLost() {
 bool ShouldOOS() {
     int x = rand() % 100;
     if (x < OOS_ERROR_PERCENT) {
-        return true; // should out of sequence.
+        return true;  // should out of sequence.
     }
     return false;
 }
@@ -50,13 +52,14 @@ int InitServerSocket() {
     struct hostent *hent = get_local_ip();
 
     // init serverAddr to establish socket.
-    memset((void*)&serverAddr, 0, sizeof(serverAddr));
+    memset((void *)&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(SERVER_PORT);
     memcpy(&serverAddr.sin_addr, hent->h_addr_list[0], hent->h_length);
 
     // Bind socket to ip address and port.
-    if (bind(server_socket, (const sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+    if (bind(server_socket, (const sockaddr *)&serverAddr, sizeof(serverAddr)) <
+        0) {
         fprintf(stderr, "Could not bind to socket.\n");
         LOG("%s", strerror(errno));
         return -1;
@@ -72,7 +75,7 @@ int InitServerSocket() {
 // OOT pkgs do not need to be removed from the queue.
 // The server also doesn't care about how many same pkgs has sent to clients.
 void CheckProcessTimeOut(int server_socket) {
-    std::vector<UDP_Package*> pkg_vc = global_submit_queue->GetOOTPKG();
+    std::vector<UDP_Package *> pkg_vc = global_submit_queue->GetOOTPKG();
     for (size_t i = 0; i < pkg_vc.size(); ++i) {
         if (pkg_vc.at(i) != NULL) {
             SendPackageWrapper(server_socket, pkg_vc.at(i));
@@ -84,17 +87,19 @@ void SendPackageWrapper(int server_socket, UDP_Package *pkg) {
     assert(pkg != NULL);
     // send to client.
     std::string data = pkg->PackIt();
-    auto it = clients->find(pkg->GetID());
-    if (it == clients->end()) {
-        LOG("Not found client from map<id, clients>. ID: %d\n", (int)pkg->GetID());
-        return ;
+    auto it = global_clients->find(pkg->GetID());
+    if (it == global_clients->end()) {
+        LOG("Not found client from map<id, clients>. ID: %d\n",
+            (int)pkg->GetID());
+        return;
     }
     if (ShouldLost()) {
         // do nothing.
         LOG("This pkg is lost.\n");
     } else {
-        int ret = sendto(server_socket, data.c_str(), data.size(), 0, 
-                (const sockaddr *)(it->second->GetClientAddr()), sizeof(struct sockaddr_in));
+        int ret = sendto(server_socket, data.c_str(), data.size(), 0,
+                         (const sockaddr *)(it->second->GetClientAddr()),
+                         sizeof(struct sockaddr_in));
         if (ret < 0) {
             LOG("sendto failed! error: %s\n", strerror(errno));
         }
@@ -104,7 +109,50 @@ void SendPackageWrapper(int server_socket, UDP_Package *pkg) {
 }
 
 void ReceiverThread(int server_socket) {
+    ssize_t recv_bytes = 0;
+    socklen_t addr_len = 0;
+    struct sockaddr_in client_addr;
+    char buf[MAX_RECV_BUFFER_SIZE];
+    while (true) {
+        // init.
+        recv_bytes = 0;
+        addr_len = 0;
+        memset(&client_addr, 0, sizeof(struct sockaddr_in));
+        memset(buf, 0, MAX_RECV_BUFFER_SIZE);
+        recv_bytes = recvfrom(server_socket, buf, MAX_RECV_BUFFER_SIZE, 0,
+                              (sockaddr *)(&client_addr), &addr_len);
+        if (recv_bytes < 0) {
+            LOG("recvfrom failed! error: %s\n", strerror(errno));
+            continue;
+        }
 
+        // build a package.
+        // this pkg's life is this function. After process, it should be freed.
+        UDP_Package pkg(std::string(buf, recv_bytes));
+        if (!pkg.Valid()) {
+            LOG("unpack message failed!\n");
+            continue;
+        }
+
+        // if this is a new client connection, insert a new client handler into global client vector.
+        auto it = global_clients->find(pkg.GetID());
+        if (it == global_clients->end()) {
+            ClientHandler *client = new ClientHandler(&client_addr);
+            assert(client != NULL);
+            assert(pkg.GetID() == client->GetID());
+            auto rst = global_clients->insert(std::pair<uint32_t, ClientHandler*> (client->GetID(), client));
+            if (rst.second == false) {
+                LOG("Insert new client to global client vector failed!\n");
+                delete client;
+                continue;
+            }
+        }
+
+        // process received pkg.
+        it = global_clients->find(pkg.GetID());
+        assert(it != global_clients->end());
+        it->second->ProcessPKG(&pkg);
+    }
 }
 
 void SenderThread(int server_socket) {
@@ -128,7 +176,6 @@ void SenderThread(int server_socket) {
     }
 }
 
-
 ClientHandler::~ClientHandler() {
     for (size_t i = 0; i < all_pkgs_.size(); ++i) {
         delete all_pkgs_.at(i);
@@ -140,34 +187,38 @@ void ClientHandler::ProcessRaw(std::string recv_msg) {
     UDP_Package recv_pkg(recv_msg);
     if (!recv_pkg.Valid()) {
         LOG("unpack received data failed!\n");
-        return ;
+        return;
     }
-    switch (recv_pkg.GetType())     {
+    ProcessPKG(&recv_pkg);
+}
+
+void ClientHandler::ProcessPKG(UDP_Package *recv_pkg) {
+    switch (recv_pkg->GetType()) {
         case PK_MSG:
-            this->ProcessMSG(&recv_pkg);
+            this->ProcessMSG(recv_pkg);
             break;
         case PK_ACK:
-            this->ProcessACK(&recv_pkg);
+            this->ProcessACK(recv_pkg);
             break;
         case PK_LIST:
-            this->ProcessList(&recv_pkg);
+            this->ProcessList(recv_pkg);
             break;
         case PK_GET:
-            this->ProcessGet(&recv_pkg);
+            this->ProcessGet(recv_pkg);
             break;
         default:
-            LOG("%d: invalid PACKET_TYPE\n", recv_pkg.GetType());
+            LOG("%d: invalid PACKET_TYPE\n", recv_pkg->GetType());
             break;
     }
 }
 
-void ClientHandler::ProcessACK(UDP_Package* recv_pkg) {
+void ClientHandler::ProcessACK(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_ACK);
     // remove pkg from global_sub_queue.
     global_submit_queue->Remove(recv_pkg->GetID(), recv_pkg->GetSeqNum());
 }
 
-void ClientHandler::ProcessList(UDP_Package* recv_pkg) {
+void ClientHandler::ProcessList(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_LIST);
     // get file names from the dir.
     std::vector<std::string> fnames = get_files_from_path("./");
@@ -182,7 +233,7 @@ void ClientHandler::ProcessList(UDP_Package* recv_pkg) {
     global_wait_queue->PushBack(pkg);
 }
 
-void ClientHandler::ProcessGet(UDP_Package* recv_pkg) {
+void ClientHandler::ProcessGet(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_GET);
     std::string fname = recv_pkg->GetData();
     if (fname.size() > 128 || !FileExist(fname.c_str())) {
@@ -213,15 +264,16 @@ void ClientHandler::ProcessGet(UDP_Package* recv_pkg) {
     }
 }
 
-void ClientHandler::ProcessMSG(UDP_Package* recv_pkg) {
+void ClientHandler::ProcessMSG(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_MSG);
     in_addr add;
     add.s_addr = addr_;
-    printf("receive msg from %s: %s\n", inet_ntoa(add), recv_pkg->GetData().c_str());
+    printf("receive msg from %s: %s\n", inet_ntoa(add),
+           recv_pkg->GetData().c_str());
 }
 
-std::vector<UDP_Package*> AtomicPKGQueue::GetOOTPKG() {
-    std::vector<UDP_Package*> ret;
+std::vector<UDP_Package *> AtomicPKGQueue::GetOOTPKG() {
+    std::vector<UDP_Package *> ret;
     mu_.lock();
     for (size_t i = 0; i < queue_.size(); ++i) {
         if (queue_.at(i)->IsTimeOut(PKG_TTL)) {
@@ -232,13 +284,13 @@ std::vector<UDP_Package*> AtomicPKGQueue::GetOOTPKG() {
     return ret;
 }
 
-void AtomicPKGQueue::PushBack(UDP_Package* pkg) {
+void AtomicPKGQueue::PushBack(UDP_Package *pkg) {
     mu_.lock();
     queue_.push_back(pkg);
     mu_.unlock();
 }
 
-UDP_Package* AtomicPKGQueue::PopFront() {
+UDP_Package *AtomicPKGQueue::PopFront() {
     UDP_Package *ret = NULL;
     mu_.lock();
     if (!queue_.empty()) {
@@ -249,7 +301,7 @@ UDP_Package* AtomicPKGQueue::PopFront() {
     return ret;
 }
 
-UDP_Package* AtomicPKGQueue::PopPKG() {
+UDP_Package *AtomicPKGQueue::PopPKG() {
     UDP_Package *ret = NULL;
     mu_.lock();
     if (!queue_.empty()) {
@@ -264,7 +316,7 @@ UDP_Package* AtomicPKGQueue::PopPKG() {
     return ret;
 }
 
-UDP_Package* AtomicPKGQueue::Remove(uint32_t id, uint32_t seq) {
+UDP_Package *AtomicPKGQueue::Remove(uint32_t id, uint32_t seq) {
     UDP_Package *ret = NULL;
     mu_.lock();
     auto it = queue_.begin();
@@ -283,7 +335,7 @@ int main(int argc, char const *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // STEP 0: init global variables.
     ///////////////////////////////////////////////////////////////////////////
-    clients = new std::map<uint32_t, ClientHandler*>();
+    global_clients = new std::map<uint32_t, ClientHandler *>();
     global_wait_queue = new AtomicPKGQueue(0);
     global_submit_queue = new AtomicPKGQueue(WINDOW_SIZE);
 
@@ -297,7 +349,8 @@ int main(int argc, char const *argv[]) {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // STEP 2: issue one thread for sending message, and another one for receiving.
+    // STEP 2: issue one thread for sending message, and another one for
+    // receiving.
     ///////////////////////////////////////////////////////////////////////////
     std::thread sender(SenderThread, server_socket);
     std::thread receiver(ReceiverThread, server_socket);
@@ -308,10 +361,9 @@ int main(int argc, char const *argv[]) {
     // STEP 3: clean up.
     ///////////////////////////////////////////////////////////////////////////
     close(server_socket);
-    for (auto it = clients->begin(); it != clients->end(); ++it) {
+    for (auto it = global_clients->begin(); it != global_clients->end(); ++it) {
         delete it->second;
     }
 
     return 0;
 }
-

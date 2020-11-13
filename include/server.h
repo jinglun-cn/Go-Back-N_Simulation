@@ -14,7 +14,9 @@
 #include <map>
 #include <queue>
 
-#define MAXLINE 1500
+#include "utils.h"
+
+#define MAX_RECV_BUFFER_SIZE  2048
 #define MAX_SUBMIT_QUEUE_SIZE 4
 #define WINDOW_SIZE   MAX_SUBMIT_QUEUE_SIZE
 #define SERVER_PORT 9090
@@ -27,7 +29,7 @@
 class ClientHandler;
 class AtomicPKGQueue;
 // uint32_t: sockaddr_in->sin_addr.s_addr to identify the client.
-extern std::map<uint32_t, ClientHandler*> *clients;
+extern std::map<uint32_t, ClientHandler*> *global_clients;
 // wait queue. pkgs from clients, have not sent yet.
 extern AtomicPKGQueue *global_wait_queue;  
 // submit queue. pkgs have sent to the client, but not received ACK yet.
@@ -73,10 +75,15 @@ public:
         return &client_addr_;
     }
 
+    inline uint32_t GetID() {
+        return addr_;
+    }
+
     // process functions process received msg and build pkg.
     // this built pkg will push to global wait queue for sending.
     // unpack msg and pass it to specified function.
     void ProcessRaw(std::string recv_msg);
+    void ProcessPKG(UDP_Package *recv_pkg);
     // check ack msg and remove compeleted pkgs from global_submit_queue.
     void ProcessACK(UDP_Package* recv_pkg);
     // process ls command got from client.
