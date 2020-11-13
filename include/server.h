@@ -37,6 +37,11 @@ extern AtomicPKGQueue *global_submit_queue;
 bool ShouldLost();  // lost of pkg.
 bool ShouldOOS();   // out of sequence.
 
+// check and process time out pkgs.
+void CheckProcessTimeOut(int server_socket);
+// a wrapper for sending pkg to clients.
+void SendPackageWrapper(int server_socket, UDP_Package *pkg);
+
 // INFO: create ClientHandler-slide socket.
 // RETURN: return socket, -1 if failed.
 int InitClientHandlerSocket();
@@ -52,7 +57,7 @@ private:
     struct sockaddr_in client_addr_;
     // all pkgs generated from this server-client connection.
     // stored in here for clean up.
-    std::vector<UPD_Package*> all_pkgs_;  
+    std::vector<UDP_Package*> all_pkgs_;  
 
 
 public:
@@ -73,13 +78,13 @@ public:
     // unpack msg and pass it to specified function.
     void ProcessRaw(std::string recv_msg);
     // check ack msg and remove compeleted pkgs from global_submit_queue.
-    void ProcessACK(UPD_Package* recv_pkg);
+    void ProcessACK(UDP_Package* recv_pkg);
     // process ls command got from client.
-    void ProcessList(UPD_Package* recv_pkg);
+    void ProcessList(UDP_Package* recv_pkg);
     // process get command got from client.
-    void ProcessGet(UPD_Package* recv_pkg);
+    void ProcessGet(UDP_Package* recv_pkg);
     // process msg command got from client.
-    void ProcessMSG(UPD_Package* recv_pkg);
+    void ProcessMSG(UDP_Package* recv_pkg);
 
     // get all file frames based on the file name, then build pkgs and push to wait_queue_.
     void GetFileFrames();
@@ -93,7 +98,7 @@ class AtomicPKGQueue {
   private:
     // considering OOS select pkg from the queue, 
     // I decide to use vector instead of std::queue.
-    std::vector<UPD_Package*> queue_;
+    std::vector<UDP_Package*> queue_;
     std::mutex mu_;
     size_t cap_;
 public:
@@ -109,16 +114,21 @@ public:
         return queue_.empty();
     }
 
+    // get out of time packages.
+    // thread safe.
+    // DO NOT remove this OOT pkg from this queue.
+    std::vector<UDP_Package*> GetOOTPKG();
+
     // push to the back of the queue.
     // check whether this queue is full before push.
-    void PushBack(UPD_Package*);
+    void PushBack(UDP_Package*);
     // pop one pkg from the front and remove it from the queue.
-    UPD_Package* PopFront();
+    UDP_Package* PopFront();
     // pop one pkg from the queue, based on out of sequence policy.
     // if not OOS, pop from front, otherwise pop the second one.
-    UPD_Package* PopPKG();
+    UDP_Package* PopPKG();
     // remove specified pkg from this queue.
-    UPD_Package* Remove(uint32_t id, uint32_t seq);
+    UDP_Package* Remove(uint32_t id, uint32_t seq);
 };
 
 

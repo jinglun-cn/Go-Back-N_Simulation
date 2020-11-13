@@ -69,30 +69,62 @@ int InitServerSocket() {
     return server_socket;
 }
 
+// OOT pkgs do not need to be removed from the queue.
+// The server also doesn't care about how many same pkgs has sent to clients.
+void CheckProcessTimeOut(int server_socket) {
+    std::vector<UDP_Package*> pkg_vc = global_submit_queue->GetOOTPKG();
+    for (size_t i = 0; i < pkg_vc.size(); ++i) {
+        if (pkg_vc.at(i) != NULL) {
+            SendPackageWrapper(server_socket, pkg_vc.at(i));
+        }
+    }
+}
+
+void SendPackageWrapper(int server_socket, UDP_Package *pkg) {
+    assert(pkg != NULL);
+    // send to client.
+    std::string data = pkg->PackIt();
+    auto it = clients->find(pkg->GetID());
+    if (it == clients->end()) {
+        LOG("Not found client from map<id, clients>. ID: %d\n", (int)pkg->GetID());
+        return ;
+    }
+    if (ShouldLost()) {
+        // do nothing.
+        LOG("This pkg is lost.\n");
+    } else {
+        int ret = sendto(server_socket, data.c_str(), data.size(), 0, 
+                (const sockaddr *)(it->second->GetClientAddr()), sizeof(struct sockaddr_in));
+        if (ret < 0) {
+            LOG("sendto failed! error: %s\n", strerror(errno));
+        }
+    }
+    // update send time.
+    pkg->SetSentTime();
+}
+
 void ReceiverThread(int server_socket) {
 
 }
 
 void SenderThread(int server_socket) {
     while (true) {
-        while (global_wait_queue->IsEmpty() && !global_submit_queue->IsFull()) {
+        while (global_wait_queue->IsEmpty() && global_submit_queue->IsFull()) {
+            // if wait queue is empty means: no pkgs need to send.
+            // if submit queue is full means: slide windown is full.
             SPINLOCK_WAIT();
+            // check time out pkgs.
+            CheckProcessTimeOut(server_socket);
         }
         // get pkg from wait queue.
-        UPD_Package *pkg = global_wait_queue->PopPKG();
+        // Out of sequence pkg will be determined in PopPKG function.
+        UDP_Package *pkg = global_wait_queue->PopPKG();
         if (pkg == NULL) {
             // this queue is empty.
             continue;
         }
-        // send to client.
-        std::string data = pkg->PackIt();
-        auto it = clients->find(pkg->GetID());
-        if (it == clients->end()) {
-            LOG("Not found client from map<id, clients>. ID: %d\n", (int)pkg->GetID());
-            continue;
-        }
-        sendto(server_socket, data.c_str(), data.size(), 0, 
-                (const sockaddr *)(it->second->GetClientAddr()), sizeof(struct sockaddr_in));
+        SendPackageWrapper(server_socket, pkg);
+        CheckProcessTimeOut(server_socket);
     }
 }
 
@@ -105,7 +137,7 @@ ClientHandler::~ClientHandler() {
 }
 
 void ClientHandler::ProcessRaw(std::string recv_msg) {
-    UPD_Package recv_pkg(recv_msg);
+    UDP_Package recv_pkg(recv_msg);
     if (!recv_pkg.Valid()) {
         LOG("unpack received data failed!\n");
         return ;
@@ -129,18 +161,18 @@ void ClientHandler::ProcessRaw(std::string recv_msg) {
     }
 }
 
-void ClientHandler::ProcessACK(UPD_Package* recv_pkg) {
+void ClientHandler::ProcessACK(UDP_Package* recv_pkg) {
     assert(recv_pkg->GetType() == PK_ACK);
     // remove pkg from global_sub_queue.
     global_submit_queue->Remove(recv_pkg->GetID(), recv_pkg->GetSeqNum());
 }
 
-void ClientHandler::ProcessList(UPD_Package* recv_pkg) {
+void ClientHandler::ProcessList(UDP_Package* recv_pkg) {
     assert(recv_pkg->GetType() == PK_LIST);
     // get file names from the dir.
     std::vector<std::string> fnames = get_files_from_path("./");
     // build a package.
-    UPD_Package *pkg = new UPD_Package();
+    UDP_Package *pkg = new UDP_Package();
     pkg->SetHeader(PK_LIST, addr_, __sync_fetch_and_add(&seq_, 1));
     for (size_t i = 0; i < fnames.size(); ++i) {
         pkg->AppendData(fnames.at(i), "", "  ");
@@ -150,13 +182,13 @@ void ClientHandler::ProcessList(UPD_Package* recv_pkg) {
     global_wait_queue->PushBack(pkg);
 }
 
-void ClientHandler::ProcessGet(UPD_Package* recv_pkg) {
+void ClientHandler::ProcessGet(UDP_Package* recv_pkg) {
     assert(recv_pkg->GetType() == PK_GET);
     std::string fname = recv_pkg->GetData();
     if (fname.size() > 128 || !FileExist(fname.c_str())) {
         LOG("%s: No such file.\n", fname.c_str());
         // build a package.
-        UPD_Package *pkg = new UPD_Package();
+        UDP_Package *pkg = new UDP_Package();
         pkg->SetHeader(PK_NOF, addr_, __sync_fetch_and_add(&seq_, 1));
         // push pkg.
         all_pkgs_.push_back(pkg);
@@ -168,7 +200,7 @@ void ClientHandler::ProcessGet(UPD_Package* recv_pkg) {
             while (!fin.eof()) {
                 fin.read(buf, FILE_CHUNK_SIZE);
                 // build a package.
-                UPD_Package *pkg = new UPD_Package();
+                UDP_Package *pkg = new UDP_Package();
                 pkg->SetHeader(PK_FILE, addr_, __sync_fetch_and_add(&seq_, 1));
                 pkg->AppendData(std::string(buf, fin.gcount()));
                 // push pkg.
@@ -181,22 +213,33 @@ void ClientHandler::ProcessGet(UPD_Package* recv_pkg) {
     }
 }
 
-void ClientHandler::ProcessMSG(UPD_Package* recv_pkg) {
+void ClientHandler::ProcessMSG(UDP_Package* recv_pkg) {
     assert(recv_pkg->GetType() == PK_MSG);
     in_addr add;
     add.s_addr = addr_;
     printf("receive msg from %s: %s\n", inet_ntoa(add), recv_pkg->GetData().c_str());
 }
 
+std::vector<UDP_Package*> AtomicPKGQueue::GetOOTPKG() {
+    std::vector<UDP_Package*> ret;
+    mu_.lock();
+    for (size_t i = 0; i < queue_.size(); ++i) {
+        if (queue_.at(i)->IsTimeOut(PKG_TTL)) {
+            ret.push_back(queue_.at(i));
+        }
+    }
+    mu_.unlock();
+    return ret;
+}
 
-void AtomicPKGQueue::PushBack(UPD_Package* pkg) {
+void AtomicPKGQueue::PushBack(UDP_Package* pkg) {
     mu_.lock();
     queue_.push_back(pkg);
     mu_.unlock();
 }
 
-UPD_Package* AtomicPKGQueue::PopFront() {
-    UPD_Package *ret = NULL;
+UDP_Package* AtomicPKGQueue::PopFront() {
+    UDP_Package *ret = NULL;
     mu_.lock();
     if (!queue_.empty()) {
         ret = queue_.at(0);
@@ -206,8 +249,8 @@ UPD_Package* AtomicPKGQueue::PopFront() {
     return ret;
 }
 
-UPD_Package* AtomicPKGQueue::PopPKG() {
-    UPD_Package *ret = NULL;
+UDP_Package* AtomicPKGQueue::PopPKG() {
+    UDP_Package *ret = NULL;
     mu_.lock();
     if (!queue_.empty()) {
         auto it = queue_.begin();
@@ -221,8 +264,8 @@ UPD_Package* AtomicPKGQueue::PopPKG() {
     return ret;
 }
 
-UPD_Package* AtomicPKGQueue::Remove(uint32_t id, uint32_t seq) {
-    UPD_Package *ret = NULL;
+UDP_Package* AtomicPKGQueue::Remove(uint32_t id, uint32_t seq) {
+    UDP_Package *ret = NULL;
     mu_.lock();
     auto it = queue_.begin();
     for (; it != queue_.end(); ++it) {

@@ -62,7 +62,7 @@ uint64_t SimulateDelay();
 //    |      |         |--> 4 bytes, client identifer.
 //    |      |--> 4 byte, package type.     
 //    |--> 4 bytes, magic number to identify the package.
-class UPD_Package {
+class UDP_Package {
   private:
     uint32_t magic_;
     uint32_t type_;
@@ -70,13 +70,14 @@ class UPD_Package {
     uint32_t seq_;
     std::string data_;
 
+    uint32_t sent_times_;   // how many times this pkg has sent to clients. 0 means has not sent yet.
     uint64_t sent_time_; // to measure the time out, in microsecond (10^-6 second).
 
   public:
-    UPD_Package() : magic_(MAGIC_NUM), type_(PK_UNKNOWN), id_(0), seq_(0), sent_time_(0) {};
+    UDP_Package() : magic_(MAGIC_NUM), type_(PK_UNKNOWN), id_(0), seq_(0), sent_times_(0), sent_time_(0) {};
     // build package from raw message.
-    explicit UPD_Package(const std::string buffer);
-    ~UPD_Package() {};
+    explicit UDP_Package(const std::string buffer);
+    ~UDP_Package() {};
 
     inline bool Valid() {
         return (magic_ == (uint32_t)(MAGIC_NUM));

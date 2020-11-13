@@ -74,8 +74,8 @@ uint32_t DecodeFixed32(const char* ptr) {
     return result;
 }
 
-UPD_Package::UPD_Package(const std::string buffer)
-    : magic_(0), type_(PK_UNKNOWN), id_(0), seq_(0), sent_time_(0) {
+UDP_Package::UDP_Package(const std::string buffer)
+    : magic_(0), type_(PK_UNKNOWN), id_(0), seq_(0), sent_times_(0), sent_time_(0) {
     if (buffer.size() < this->HeaderSize()) {
         LOG("buffer is too short to be a packet.\n");
         return;
@@ -83,58 +83,62 @@ UPD_Package::UPD_Package(const std::string buffer)
     UnpackIt(buffer);
 };
 
-void UPD_Package::SetHeader(pk_type p, uint32_t id, uint32_t seq) {
+void UDP_Package::SetHeader(pk_type p, uint32_t id, uint32_t seq) {
     this->SetType(p);
     this->SetID(id);
     this->SetSeqNum(seq);
 }
 
-void UPD_Package::SetType(pk_type p) {
+void UDP_Package::SetType(pk_type p) {
     assert(p < PK_UNKNOWN);
     type_ = (uint32_t)p;
 }
 
-pk_type UPD_Package::GetType() {
+pk_type UDP_Package::GetType() {
     return (pk_type)type_;
 }
 
-void UPD_Package::SetID(uint32_t id) {
+void UDP_Package::SetID(uint32_t id) {
     id_ = id;
 }
 
-uint32_t UPD_Package::GetID() {
+uint32_t UDP_Package::GetID() {
     return id_;
 }
 
-void UPD_Package::SetSeqNum(uint32_t s) {
+void UDP_Package::SetSeqNum(uint32_t s) {
     seq_ = s;
 }
 
-uint32_t UPD_Package::GetSeqNum() {
+uint32_t UDP_Package::GetSeqNum() {
     return seq_;
 }
 
-void UPD_Package::AppendData(const std::string d, const std::string prefix, const std::string suffix) {
+void UDP_Package::AppendData(const std::string d, const std::string prefix, const std::string suffix) {
     data_.append(prefix);
     data_.append(d);
     data_.append(suffix);
 }
 
-void UPD_Package::PackFileNames(std::vector<std::string> fnames) {
+void UDP_Package::PackFileNames(std::vector<std::string> fnames) {
     for (auto& fname : fnames) {
         this->AppendData(fname, "", "  ");
     }
 }
 
-std::string UPD_Package::GetData() {
+std::string UDP_Package::GetData() {
     return data_;
 }
 
-void UPD_Package::SetSentTime() {
+void UDP_Package::SetSentTime() {
     sent_time_ = NowMicros();
+    ++sent_times_;
 }
 
-bool UPD_Package::IsTimeOut(uint64_t micro) {
+bool UDP_Package::IsTimeOut(uint64_t micro) {
+    if (sent_times_ == 0) {
+        return false;
+    }
     uint64_t now = NowMicros();
     if (now - sent_time_ >= micro) {
         return true;
@@ -143,7 +147,7 @@ bool UPD_Package::IsTimeOut(uint64_t micro) {
     }
 }
 
-std::string UPD_Package::PackIt() {
+std::string UDP_Package::PackIt() {
     std::string buffer;
 
     // append magic number.
@@ -160,7 +164,7 @@ std::string UPD_Package::PackIt() {
     return buffer;
 }
 
-void UPD_Package::UnpackIt(const std::string buffer) {
+void UDP_Package::UnpackIt(const std::string buffer) {
     const char *ptr = buffer.c_str();
 
     // check magic number is correct.
