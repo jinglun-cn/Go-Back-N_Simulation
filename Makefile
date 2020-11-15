@@ -12,8 +12,8 @@ all: server client
 server: server.o utils.o
 	g++ $(LDFLAGS) -o $@ $?
 
-client: client.o
-	g++ $(LDFLAGS) -o $@ $<
+client: client.o utils.o
+	g++ $(LDFLAGS) -o $@ $?
 
 server.o: src/server.cpp
 	g++ $(CXXFLAGS) -c $<

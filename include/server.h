@@ -52,6 +52,9 @@ int InitClientHandlerSocket();
 void ReceiverThread(int server_socket);
 void SenderThread(int server_socket);
 
+// shutdonw the server and clean up everything.
+void clean_up();
+
 class ClientHandler {
 private:
     uint32_t addr_;   // sockaddr_in->sin_addr.s_addr to identify the client.

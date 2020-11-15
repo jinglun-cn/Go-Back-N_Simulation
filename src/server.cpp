@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <cstring>
 #include <fstream>
@@ -20,6 +21,21 @@
 std::map<uint32_t, ClientHandler *> *global_clients;
 AtomicPKGQueue *global_wait_queue;
 AtomicPKGQueue *global_submit_queue;
+
+static int server_socket;    
+
+static void sig_int_handler(int sig_num){
+    clean_up();
+    exit(0);
+}
+
+void clean_up() {
+    close(server_socket);
+    for (auto it = global_clients->begin(); it != global_clients->end(); ++it) {
+        delete it->second;
+    }
+    LOG("Finish clearn up.\n");
+}
 
 // simulate something.
 bool ShouldLost() {
@@ -119,6 +135,8 @@ void ReceiverThread(int server_socket) {
         addr_len = 0;
         memset(&client_addr, 0, sizeof(struct sockaddr_in));
         memset(buf, 0, MAX_RECV_BUFFER_SIZE);
+
+        // receive from clients.
         recv_bytes = recvfrom(server_socket, buf, MAX_RECV_BUFFER_SIZE, 0,
                               (sockaddr *)(&client_addr), &addr_len);
         if (recv_bytes < 0) {
@@ -134,7 +152,7 @@ void ReceiverThread(int server_socket) {
             continue;
         }
 
-        // if this is a new client connection, insert a new client handler into global client vector.
+        // if this is a new client connection, insert a new client handler into global client map.
         auto it = global_clients->find(pkg.GetID());
         if (it == global_clients->end()) {
             ClientHandler *client = new ClientHandler(&client_addr);
@@ -142,7 +160,7 @@ void ReceiverThread(int server_socket) {
             assert(pkg.GetID() == client->GetID());
             auto rst = global_clients->insert(std::pair<uint32_t, ClientHandler*> (client->GetID(), client));
             if (rst.second == false) {
-                LOG("Insert new client to global client vector failed!\n");
+                LOG("Insert new client to global client map failed!\n");
                 delete client;
                 continue;
             }
@@ -335,35 +353,32 @@ int main(int argc, char const *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // STEP 0: init global variables.
     ///////////////////////////////////////////////////////////////////////////
+    signal(SIGINT,sig_int_handler);
+    
+    ///////////////////////////////////////////////////////////////////////////
+    // STEP 1: init global variables.
+    ///////////////////////////////////////////////////////////////////////////
     global_clients = new std::map<uint32_t, ClientHandler *>();
     global_wait_queue = new AtomicPKGQueue(0);
     global_submit_queue = new AtomicPKGQueue(WINDOW_SIZE);
 
     ///////////////////////////////////////////////////////////////////////////
-    // STEP 1: create server socket.
+    // STEP 2: create server socket.
     ///////////////////////////////////////////////////////////////////////////
-    int server_socket = InitServerSocket();
+    server_socket = InitServerSocket();
     if (server_socket < 0) {
         fprintf(stderr, "Init server socket failed!\n");
         exit(1);
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // STEP 2: issue one thread for sending message, and another one for
+    // STEP 3: issue one thread for sending message, and another one for
     // receiving.
     ///////////////////////////////////////////////////////////////////////////
     std::thread sender(SenderThread, server_socket);
     std::thread receiver(ReceiverThread, server_socket);
     receiver.join();
     sender.join();
-
-    ///////////////////////////////////////////////////////////////////////////
-    // STEP 3: clean up.
-    ///////////////////////////////////////////////////////////////////////////
-    close(server_socket);
-    for (auto it = global_clients->begin(); it != global_clients->end(); ++it) {
-        delete it->second;
-    }
 
     return 0;
 }
