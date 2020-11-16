@@ -25,7 +25,7 @@ void InitNormalDistribution(int mean, int stddev) {
 uint64_t SimulateDelay() {
     assert(normal_dist != NULL);
     double x = (*normal_dist)(random_generator);
-    return (uint32_t)(x * 1000000);
+    return (uint64_t)(x * 1000000);
 }
 
 struct hostent *get_local_ip() {
@@ -94,7 +94,7 @@ void UDP_Package::SetType(pk_type p) {
     type_ = (uint32_t)p;
 }
 
-pk_type UDP_Package::GetType() {
+pk_type UDP_Package::GetType() const {
     return (pk_type)type_;
 }
 
@@ -102,7 +102,7 @@ void UDP_Package::SetID(uint32_t id) {
     id_ = id;
 }
 
-uint32_t UDP_Package::GetID() {
+uint32_t UDP_Package::GetID() const {
     return id_;
 }
 
@@ -110,7 +110,7 @@ void UDP_Package::SetSeqNum(uint32_t s) {
     seq_ = s;
 }
 
-uint32_t UDP_Package::GetSeqNum() {
+uint32_t UDP_Package::GetSeqNum() const {
     return seq_;
 }
 
@@ -126,12 +126,12 @@ void UDP_Package::PackFileNames(std::vector<std::string> fnames) {
     }
 }
 
-std::string UDP_Package::GetData() {
+std::string UDP_Package::GetData() const {
     return data_;
 }
 
-void UDP_Package::SetSentTime() {
-    sent_time_ = NowMicros();
+void UDP_Package::SetSentTime(uint64_t start) {
+    sent_time_ = (start == 0) ? NowMicros() : start;
     ++sent_times_;
 }
 
@@ -168,7 +168,7 @@ void UDP_Package::UnpackIt(const std::string buffer) {
     const char *ptr = buffer.c_str();
 
     // check magic number is correct.
-    uint32_t magic_ = DecodeFixed32(ptr);
+    magic_ = DecodeFixed32(ptr);
     if (magic_ != (uint32_t)(MAGIC_NUM)) {
         LOG("magic number: %ld, expected number %ld\n", (unsigned long)magic_, (unsigned long)MAGIC_NUM);
     } else {
@@ -191,4 +191,20 @@ void UDP_Package::UnpackIt(const std::string buffer) {
             data_.append(ptr, buffer.size() - this->HeaderSize()); 
         }
     }
+}
+
+std::string UDP_Package::PrintInfo() {
+    std::stringstream  s;
+    s << "magic number: " << magic_ << "\n";
+    s << "type: " << type_ << "\n";
+    s << "id_: " << id_ << "\n";
+    s << "seq_: " << seq_ << "\n";
+    s << "send times: " << sent_times_ << "\n";
+    s << "send time: " << sent_time_ << "\n";
+    if (data_.size() > 20) {
+        s << "data: " << data_.substr(0, 20) << "......\n";
+    } else {
+        s << "data: " << data_ << "\n";
+    }
+    return s.str();
 }

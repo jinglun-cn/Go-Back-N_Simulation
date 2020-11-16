@@ -94,12 +94,13 @@ void CheckProcessTimeOut(int server_socket) {
     std::vector<UDP_Package *> pkg_vc = global_submit_queue->GetOOTPKG();
     for (size_t i = 0; i < pkg_vc.size(); ++i) {
         if (pkg_vc.at(i) != NULL) {
-            SendPackageWrapper(server_socket, pkg_vc.at(i));
+            LOG("A package is out of time, re-send it!");
+            SendPackageWrapper(server_socket, pkg_vc.at(i), true);
         }
     }
 }
 
-void SendPackageWrapper(int server_socket, UDP_Package *pkg) {
+void SendPackageWrapper(int server_socket, UDP_Package *pkg, bool re_send) {
     assert(pkg != NULL);
     // send to client.
     std::string data = pkg->PackIt();
@@ -109,19 +110,23 @@ void SendPackageWrapper(int server_socket, UDP_Package *pkg) {
             (int)pkg->GetID());
         return;
     }
-    if (ShouldLost()) {
+    LOG("%s\n", pkg->PrintInfo().c_str());
+    if (pkg->GetType() == PK_FILE && ShouldLost()) {
         // do nothing.
-        LOG("This pkg is lost.\n");
+        LOG("!!!! This pkg is lost !!!!\n%s\n", pkg->PrintInfo().c_str());
     } else {
         int ret = sendto(server_socket, data.c_str(), data.size(), 0,
                          (const sockaddr *)(it->second->GetClientAddr()),
-                         sizeof(struct sockaddr_in));
+                         it->second->GetClientLen());
         if (ret < 0) {
             LOG("sendto failed! error: %s\n", strerror(errno));
         }
     }
     // update send time.
     pkg->SetSentTime();
+    if (re_send == false) {
+        global_submit_queue->PushBack(pkg);
+    }
 }
 
 void ReceiverThread(int server_socket) {
@@ -132,7 +137,7 @@ void ReceiverThread(int server_socket) {
     while (true) {
         // init.
         recv_bytes = 0;
-        addr_len = 0;
+        addr_len = sizeof(struct sockaddr_in);
         memset(&client_addr, 0, sizeof(struct sockaddr_in));
         memset(buf, 0, MAX_RECV_BUFFER_SIZE);
 
@@ -147,6 +152,9 @@ void ReceiverThread(int server_socket) {
         // build a package.
         // this pkg's life is this function. After process, it should be freed.
         UDP_Package pkg(std::string(buf, recv_bytes));
+
+        LOG("%s\n", pkg.PrintInfo().c_str());
+
         if (!pkg.Valid()) {
             LOG("unpack message failed!\n");
             continue;
@@ -155,7 +163,7 @@ void ReceiverThread(int server_socket) {
         // if this is a new client connection, insert a new client handler into global client map.
         auto it = global_clients->find(pkg.GetID());
         if (it == global_clients->end()) {
-            ClientHandler *client = new ClientHandler(&client_addr);
+            ClientHandler *client = new ClientHandler(&client_addr, addr_len, pkg.GetID());
             assert(client != NULL);
             assert(pkg.GetID() == client->GetID());
             auto rst = global_clients->insert(std::pair<uint32_t, ClientHandler*> (client->GetID(), client));
@@ -164,6 +172,7 @@ void ReceiverThread(int server_socket) {
                 delete client;
                 continue;
             }
+            LOG("Insert a new client to global client map.\n");
         }
 
         // process received pkg.
@@ -175,7 +184,7 @@ void ReceiverThread(int server_socket) {
 
 void SenderThread(int server_socket) {
     while (true) {
-        while (global_wait_queue->IsEmpty() && global_submit_queue->IsFull()) {
+        while (global_wait_queue->IsEmpty() || global_submit_queue->IsFull()) {
             // if wait queue is empty means: no pkgs need to send.
             // if submit queue is full means: slide windown is full.
             SPINLOCK_WAIT();
@@ -242,7 +251,7 @@ void ClientHandler::ProcessList(UDP_Package *recv_pkg) {
     std::vector<std::string> fnames = get_files_from_path("./");
     // build a package.
     UDP_Package *pkg = new UDP_Package();
-    pkg->SetHeader(PK_LIST, addr_, __sync_fetch_and_add(&seq_, 1));
+    pkg->SetHeader(PK_LIST, id_, __sync_fetch_and_add(&seq_, 1));
     for (size_t i = 0; i < fnames.size(); ++i) {
         pkg->AppendData(fnames.at(i), "", "  ");
     }
@@ -255,10 +264,13 @@ void ClientHandler::ProcessGet(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_GET);
     std::string fname = recv_pkg->GetData();
     if (fname.size() > 128 || !FileExist(fname.c_str())) {
-        LOG("%s: No such file.\n", fname.c_str());
+        std::string msg(fname);
+        msg.append(": No such file exist in the server.\n");
+        LOG("%s", msg.c_str());
         // build a package.
         UDP_Package *pkg = new UDP_Package();
-        pkg->SetHeader(PK_NOF, addr_, __sync_fetch_and_add(&seq_, 1));
+        pkg->SetHeader(PK_NOF, id_, __sync_fetch_and_add(&seq_, 1));
+        pkg->AppendData(msg);
         // push pkg.
         all_pkgs_.push_back(pkg);
         global_wait_queue->PushBack(pkg);
@@ -270,12 +282,19 @@ void ClientHandler::ProcessGet(UDP_Package *recv_pkg) {
                 fin.read(buf, FILE_CHUNK_SIZE);
                 // build a package.
                 UDP_Package *pkg = new UDP_Package();
-                pkg->SetHeader(PK_FILE, addr_, __sync_fetch_and_add(&seq_, 1));
+                pkg->SetHeader(PK_FILE, id_, __sync_fetch_and_add(&seq_, 1));
                 pkg->AppendData(std::string(buf, fin.gcount()));
                 // push pkg.
                 all_pkgs_.push_back(pkg);
                 global_wait_queue->PushBack(pkg);
             }
+            // append a end of file package.
+            UDP_Package *pkg = new UDP_Package();
+            pkg->SetHeader(PK_EOF, id_, __sync_fetch_and_add(&seq_, 1));
+            pkg->AppendData("");
+            // push pkg.
+            all_pkgs_.push_back(pkg);
+            global_wait_queue->PushBack(pkg);
         } else {
             LOG("%s: Open failed: %s\n", fname.c_str(), strerror(errno));
         }
@@ -284,9 +303,7 @@ void ClientHandler::ProcessGet(UDP_Package *recv_pkg) {
 
 void ClientHandler::ProcessMSG(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_MSG);
-    in_addr add;
-    add.s_addr = addr_;
-    printf("receive msg from %s: %s\n", inet_ntoa(add),
+    printf("receive msg from %s: %s\n", inet_ntoa(client_addr_.sin_addr),
            recv_pkg->GetData().c_str());
 }
 
@@ -325,8 +342,13 @@ UDP_Package *AtomicPKGQueue::PopPKG() {
     if (!queue_.empty()) {
         auto it = queue_.begin();
         if (queue_.size() > 1 && ShouldOOS()) {
-            ++it;
+            while (it != queue_.end() && (*it)->GetType() != PK_FILE) {
+                ++it;
+            }
         }
+        if (it == queue_.end() || (*it)->GetType() != PK_FILE) {
+            it = queue_.begin();
+        } 
         ret = *it;
         queue_.erase(it);
     }

@@ -24,13 +24,13 @@
 #define SPINLOCK_WAIT() usleep(1000);
 
 typedef enum PACKET_TYPE {
-    PK_MSG   = 0,
-    PK_ACK   = 1,
-    PK_LIST  = 2,
-    PK_GET   = 3,
-    PK_FILE  = 4,
-    PK_EOF   = 5,     // end of file.
-    PK_NOF   = 6,     // no such file.
+    PK_MSG   = 0,   // only msg in the pkg.
+    PK_ACK   = 1,   // only in C->S msg.
+    PK_LIST  = 2,   // C->S: append NONE. S->C: append file fnames.
+    PK_GET   = 3,   // only in C->S msg.
+    PK_FILE  = 4,   // C->S: append fname. S->C: append file data.
+    PK_EOF   = 5,     // end of file. only in S->C msg.
+    PK_NOF   = 6,     // no such file. only in S->C msg.
     PK_UNKNOWN,
 } pk_type;
 
@@ -71,7 +71,7 @@ class UDP_Package {
     std::string data_;
 
     uint32_t sent_times_;   // how many times this pkg has sent to clients. 0 means has not sent yet.
-    uint64_t sent_time_; // to measure the time out, in microsecond (10^-6 second).
+    uint64_t sent_time_;    // to measure the time out, in microsecond (10^-6 second).
 
   public:
     UDP_Package() : magic_(MAGIC_NUM), type_(PK_UNKNOWN), id_(0), seq_(0), sent_times_(0), sent_time_(0) {};
@@ -88,16 +88,16 @@ class UDP_Package {
     void SetHeader(pk_type p, uint32_t id, uint32_t seq);
     // get/set API.
     void SetType(pk_type p);
-    pk_type GetType();
+    pk_type GetType() const;
     void SetID(uint32_t id);
-    uint32_t GetID();
+    uint32_t GetID() const;
     void SetSeqNum(uint32_t s);
-    uint32_t GetSeqNum();
+    uint32_t GetSeqNum() const;
     void AppendData(const std::string d, const std::string prefix = "", const std::string suffix = "");
-    std::string GetData();
+    std::string GetData() const;
 
     // for time out.
-    void SetSentTime();
+    void SetSentTime(uint64_t start = 0);
     // return true if current microsecond - sent_time_ >= micro.
     bool IsTimeOut(uint64_t micro);
 
@@ -107,6 +107,9 @@ class UDP_Package {
     std::string PackIt();
     // unpack from a raw buffer.
     void UnpackIt(const std::string buffer);
+
+    // for debug.
+    std::string PrintInfo();
 };
 
 

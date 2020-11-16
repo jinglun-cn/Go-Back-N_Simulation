@@ -21,8 +21,8 @@
 #define WINDOW_SIZE   MAX_SUBMIT_QUEUE_SIZE
 #define SERVER_PORT 9090
 #define FILE_CHUNK_SIZE 1024
-#define LOST_ERROR_PERCENT 20   // [0,100]
-#define OOS_ERROR_PERCENT 10    // [0,100]
+#define LOST_ERROR_PERCENT 50   // [0,100]
+#define OOS_ERROR_PERCENT 0    // [0,100]
 // Time To Life (TTL) of a package to indicate time out issue.
 #define PKG_TTL  10000000 // 10 second, 10^7 microsecond.
 
@@ -42,7 +42,7 @@ bool ShouldOOS();   // out of sequence.
 // check and process time out pkgs.
 void CheckProcessTimeOut(int server_socket);
 // a wrapper for sending pkg to clients.
-void SendPackageWrapper(int server_socket, UDP_Package *pkg);
+void SendPackageWrapper(int server_socket, UDP_Package *pkg, bool re_send = false);
 
 // INFO: create ClientHandler-slide socket.
 // RETURN: return socket, -1 if failed.
@@ -57,19 +57,20 @@ void clean_up();
 
 class ClientHandler {
 private:
-    uint32_t addr_;   // sockaddr_in->sin_addr.s_addr to identify the client.
+    uint32_t id_;   // to identify the client.
     uint32_t seq_;    // seq number to identify packges.
     struct sockaddr_in client_addr_;
+    socklen_t client_len_;
     // all pkgs generated from this server-client connection.
     // stored in here for clean up.
     std::vector<UDP_Package*> all_pkgs_;  
 
 
 public:
-    ClientHandler() : addr_(0), seq_(0) {
+    ClientHandler() : id_(0), seq_(0), client_len_(0) {
         memset(&client_addr_, 0, sizeof(struct sockaddr_in));
     }
-    explicit ClientHandler(struct sockaddr_in *in) : addr_(in->sin_addr.s_addr), seq_(0) {
+    explicit ClientHandler(struct sockaddr_in *in, socklen_t len, uint32_t id) : id_(id), seq_(0), client_len_(len) {
         memcpy(&client_addr_, in, sizeof(struct sockaddr_in));
     }
     ~ClientHandler();
@@ -78,8 +79,12 @@ public:
         return &client_addr_;
     }
 
+    inline socklen_t GetClientLen() {
+        return client_len_;
+    }
+
     inline uint32_t GetID() {
-        return addr_;
+        return id_;
     }
 
     // process functions process received msg and build pkg.
