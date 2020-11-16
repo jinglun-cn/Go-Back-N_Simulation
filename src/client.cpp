@@ -60,7 +60,7 @@ int Client::InitSocket() {
     // init local client to establish socket.
     memset((void *)&client_addr_, 0, sizeof(client_addr_));
     client_addr_.sin_family = AF_INET;
-    client_addr_.sin_port = htons(server_port_);
+    client_addr_.sin_port = htons(CLIENT_PORT);
     memcpy(&client_addr_.sin_addr, hent->h_addr_list[0], hent->h_length);
     id_ = client_addr_.sin_addr.s_addr;
 

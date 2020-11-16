@@ -18,6 +18,7 @@
 #define DELAY_MAX_TIME     5    // in second.
 #define WHATEVER_SEQ     0xbaba
 #define SLEEPTIME_AFTER_RECV  4     // in second.
+#define CLIENT_PORT  12321
 
 // for receiving pkgs from the server.
 // extern void RecvThread();
