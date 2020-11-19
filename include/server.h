@@ -21,8 +21,8 @@
 #define WINDOW_SIZE   MAX_SUBMIT_QUEUE_SIZE
 #define SERVER_PORT 9090
 #define FILE_CHUNK_SIZE 1024
-#define LOST_ERROR_PERCENT 50   // [0,100]
-#define OOS_ERROR_PERCENT 0    // [0,100]
+#define LOST_ERROR_PERCENT 20   // [0,100]
+#define OOS_ERROR_PERCENT 20    // [0,100]
 // Time To Life (TTL) of a package to indicate time out issue.
 #define PKG_TTL  10000000 // 10 second, 10^7 microsecond.
 
@@ -31,7 +31,7 @@ class AtomicPKGQueue;
 // uint32_t: sockaddr_in->sin_addr.s_addr to identify the client.
 extern std::map<uint32_t, ClientHandler*> *global_clients;
 // wait queue. pkgs from clients, have not sent yet.
-extern AtomicPKGQueue *global_wait_queue;  
+extern AtomicPKGQueue *global_wait_queue;
 // submit queue. pkgs have sent to the client, but not received ACK yet.
 extern AtomicPKGQueue *global_submit_queue;
 
@@ -63,7 +63,7 @@ private:
     socklen_t client_len_;
     // all pkgs generated from this server-client connection.
     // stored in here for clean up.
-    std::vector<UDP_Package*> all_pkgs_;  
+    std::vector<UDP_Package*> all_pkgs_;
 
 
 public:
@@ -103,7 +103,7 @@ public:
 
     // get all file frames based on the file name, then build pkgs and push to wait_queue_.
     void GetFileFrames();
-    // build a pkg based on list files and push to wait_queue_.  
+    // build a pkg based on list files and push to wait_queue_.
     void ListFiles();
 };
 
@@ -111,12 +111,12 @@ public:
 // thread safe.
 class AtomicPKGQueue {
   private:
-    // considering OOS select pkg from the queue, 
+    // considering OOS select pkg from the queue,
     // I decide to use vector instead of std::queue.
     std::vector<UDP_Package*> queue_;
     std::mutex mu_;
     size_t cap_;
-public:
+  public:
     AtomicPKGQueue() : cap_(0) {};
     explicit AtomicPKGQueue(size_t cap = 0) : cap_(cap) {};
     ~AtomicPKGQueue() {};
@@ -144,6 +144,6 @@ public:
     UDP_Package* PopPKG();
     // remove specified pkg from this queue.
     UDP_Package* Remove(uint32_t id, uint32_t seq);
+    // get the seq num of the first pkg in the queue
+    uint32_t GetFirstSeq();
 };
-
-

@@ -22,7 +22,7 @@ std::map<uint32_t, ClientHandler *> *global_clients;
 AtomicPKGQueue *global_wait_queue;
 AtomicPKGQueue *global_submit_queue;
 
-static int server_socket;    
+static int server_socket;
 
 static void sig_int_handler(int sig_num){
     clean_up();
@@ -186,7 +186,7 @@ void SenderThread(int server_socket) {
     while (true) {
         while (global_wait_queue->IsEmpty() || global_submit_queue->IsFull()) {
             // if wait queue is empty means: no pkgs need to send.
-            // if submit queue is full means: slide windown is full.
+            // if submit queue is full means: slide window is full.
             SPINLOCK_WAIT();
             // check time out pkgs.
             CheckProcessTimeOut(server_socket);
@@ -241,8 +241,9 @@ void ClientHandler::ProcessPKG(UDP_Package *recv_pkg) {
 
 void ClientHandler::ProcessACK(UDP_Package *recv_pkg) {
     assert(recv_pkg->GetType() == PK_ACK);
-    // remove pkg from global_sub_queue.
-    global_submit_queue->Remove(recv_pkg->GetID(), recv_pkg->GetSeqNum());
+    // remove pkg, if its seq matches the first seq in window
+    if (recv_pkg->GetSeqNum() == global_submit_queue->GetFirstSeq())
+        global_submit_queue->PopFront();
 }
 
 void ClientHandler::ProcessList(UDP_Package *recv_pkg) {
@@ -348,7 +349,7 @@ UDP_Package *AtomicPKGQueue::PopPKG() {
         }
         if (it == queue_.end() || (*it)->GetType() != PK_FILE) {
             it = queue_.begin();
-        } 
+        }
         ret = *it;
         queue_.erase(it);
     }
@@ -371,12 +372,19 @@ UDP_Package *AtomicPKGQueue::Remove(uint32_t id, uint32_t seq) {
     return ret;
 }
 
+uint32_t AtomicPKGQueue:: GetFirstSeq() {
+    UDP_Package *pkg = queue_.front();
+    return pkg->GetSeqNum();
+};
+
 int main(int argc, char const *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
     // STEP 0: init global variables.
     ///////////////////////////////////////////////////////////////////////////
     signal(SIGINT,sig_int_handler);
-    
+    srand(time(NULL));
+    //srand(1);//reproducibility
+
     ///////////////////////////////////////////////////////////////////////////
     // STEP 1: init global variables.
     ///////////////////////////////////////////////////////////////////////////

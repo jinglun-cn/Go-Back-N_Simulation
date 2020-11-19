@@ -30,7 +30,7 @@
 - util functions
     - `enum PACKET_TYPE` is a enumerate structure which defines the package type sending between the server and clients. Inside it, some types are only used for Client-to-Server packages, and some only used for Server-to-Client packages. See utils.h for detail.
 
-    - `void InitNormalDistribution(int mean, int stddev)` function is used to set the mean and stddev of a normal distribution function. Other can calls `uint64_t SimulateDelay()` function to get a simulated delay which obey this normal distribution. 
+    - `void InitNormalDistribution(int mean, int stddev)` function is used to set the mean and stddev of a normal distribution function. Other can calls `uint64_t SimulateDelay()` function to get a simulated delay which obey this normal distribution.
 
     - `class UDP_Package` is a class defined the package format for pack and unpack some message and sending between the server and clients.
 
@@ -39,7 +39,7 @@
 
     - `class ClientHandler` is a class to handle one client connection. It stores all packages received from the same client and process different command.
 
-    - `class AtomicPKGQueue` is a simple class for atomic operations of a queue. 
+    - `class AtomicPKGQueue` is a simple class for atomic operations of a queue.
 
 - client-slide
     - The client has no other thread for processing. It just accept command from the user and send packages to the server. Then it is waiting for the response from the server. All received packages will store in a vector `std::vector<UDP_Package*> recv_pkgs_;` for later processing and to be integrated to a whole file.
@@ -65,7 +65,7 @@
     - Considering the OOS issue, the client has to build the file based on a real and correct sequence. In `void Client::CheckSeqNumber(uint32_t eof_seq)` function, the client will check whether all file data has been received based on the sequence number. And then build the file in `void Client::ProcessGotFile(std::string fname)`. Packages will sort in the function based on the sequence number.
 
 - TIMED OUT:
-    - We simulate timed out issue in the client-slide. 
+    - We simulate timed out issue in the client-slide.
 
     - `#define DELAY_MEAN_SECOND` the mean which is the normal distribution's mean which is used to determine the delay time.
 
@@ -81,8 +81,42 @@
     - Please see the `.h` and `.cpp` files for the detail of the implementation.
 
 
+    ### Test:
+    #### Basics:
+
+    ```
+    ---------------- MENU ------------------------
+    list               list files in the server
+    get <file name>    get the file from the server
+    exit               exit this application
+    ----------------------------------------------
+    ```
+    ```
+    list
+    ...
+    Server:
+    .  ..  README.md  utils.o  .git  .gitignore  server.o  client.o  server  client  Makefile  testfile.txt  include  src  
+    ```
+    ```
+    get testfile.txt
+    ...
+    File has retrived from the server, and written to the local, named: testfile.txt.xx.1605563552246042
+    ```
+    ```
+    exit
+    cai@linprog2.cs.fsu.edu:~/CNT4504-5505-Project2>ls
+    client    README.md  testfile.txt
+    client.o  server     testfile.txt.xx.1605563552246042
+    include   server.o   utils.o
+    Makefile  src
+    ```
+
+    #### Error Handling:
+    - `LOST_ERROR_PERCENT = 20, OOS_ERROR_PERCENT = 20, PKG_TTL = 100000000 (100 s)`
+
+
 #### Division of Labors:
-- Jumana Bukhari: 
-- Jinglun Cai: 
-- Spencer Cain: 
-- Yixin Chen: 
+- Jumana Bukhari:
+- Jinglun Cai:
+- Spencer Cain:
+- Yixin Chen:

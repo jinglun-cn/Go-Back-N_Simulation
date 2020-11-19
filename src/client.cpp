@@ -175,11 +175,11 @@ UDP_Package *Client::ReceiverPKG() {
             break;
         }
     }
-
+    // SendACK no matter has_recv or not
+    ToSendACK(pkg);
     if (has_recv == true) {
         return NULL;
     } else {
-        ToSendACK(pkg);
         recv_pkgs_.push_back(pkg);
         return pkg;
     }
