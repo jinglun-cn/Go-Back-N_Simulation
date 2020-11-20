@@ -60,9 +60,9 @@
 
     - `bool ShouldOOS();` function in `server.h`
 
-    - In `UDP_Package *AtomicPKGQueue::PopPKG()` function, when the send thread retrieves a package from the global wait queue, the atomic queue will check whether need to return a OOS package. If it is, the return package will be obey the FIFO rule, the second package will be return to the send thread and send to the client.
+    - In `UDP_Package *AtomicPKGQueue::PopPKG()` function, when the send thread retrieves a package from the global wait queue, the atomic queue will check whether it need to return an OOS package. If so, a random package within current send window is returned to the send thread and sent to the client.
 
-    - Considering the OOS issue, the client has to build the file based on a real and correct sequence. In `void Client::CheckSeqNumber(uint32_t eof_seq)` function, the client will check whether all file data has been received based on the sequence number. And then build the file in `void Client::ProcessGotFile(std::string fname)`. Packages will sort in the function based on the sequence number.
+    - Considering the OOS issue, the client has to build the file based on a real and correct sequence. In `void Client::CheckSeqNumber(uint32_t eof_seq)` function, the client will check whether all file data has been received based on the sequence number. It then  builds the file in `void Client::ProcessGotFile(std::string fname)`. Packages will be sorted in the function based on the sequence number.
 
 - TIMED OUT:
     - We simulate timed out issue in the client-slide.

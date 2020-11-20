@@ -34,7 +34,7 @@ void clean_up() {
     for (auto it = global_clients->begin(); it != global_clients->end(); ++it) {
         delete it->second;
     }
-    LOG("Finish clearn up.\n");
+    LOG("Finish cleaning up.\n");
 }
 
 // simulate something.
@@ -343,12 +343,24 @@ UDP_Package *AtomicPKGQueue::PopPKG() {
     if (!queue_.empty()) {
         auto it = queue_.begin();
         if (queue_.size() > 1 && ShouldOOS()) {
-            while (it != queue_.end() && (*it)->GetType() != PK_FILE) {
-                ++it;
+            int cn = 0;
+            for (it = queue_.begin(); it != queue_.end(); ++it) {
+                if ((*it)->GetType() == PK_FILE)
+                    ++cn;
             }
-        }
-        if (it == queue_.end() || (*it)->GetType() != PK_FILE) {
-            it = queue_.begin();
+            if (cn > 0) {
+                cn = std::min(cn,WINDOW_SIZE);
+                int rd = rand() % cn + 1;
+                // Find rd-th PK_FILE type pkg
+                for (it = queue_.begin(); it != queue_.end(); ++it) {
+                    if ((*it)->GetType() == PK_FILE)
+                       --rd;
+                    if (rd == 0):
+                        break;
+                }
+                LOG("!!!! This package is Out-Of-Sequence!!!!\n");
+            } else
+                it = queue_.begin();
         }
         ret = *it;
         queue_.erase(it);
