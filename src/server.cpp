@@ -348,14 +348,14 @@ UDP_Package *AtomicPKGQueue::PopPKG() {
                 if ((*it)->GetType() == PK_FILE)
                     ++cn;
             }
-            if (cn > 0) {
-                cn = std::min(cn, WINDOW_SIZE);
-                int rd = rand() % cn + 1;
-                // Find rd-th PK_FILE type pkg
+            if (cn > 1) {
+                // cn = std::min(cn, WINDOW_SIZE);
+                 cn = 2;
+                // Find the 2nd PK_FILE type pkg
                 for (it = queue_.begin(); it != queue_.end(); ++it) {
                     if ((*it)->GetType() == PK_FILE) {
-                      --rd;
-                      if (rd == 0) break;
+                      --cn;
+                      if (cn == 0) break;
                     }
                 }
                 LOG("!!!! This package is Out-Of-Sequence!!!!\n");
