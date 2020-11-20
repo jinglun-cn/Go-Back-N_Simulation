@@ -79,6 +79,18 @@ int Client::InitSocket() {
     server_addr_.sin_port = htons(server_port_);
     server_addr_.sin_addr.s_addr = inet_addr(server_ip_);
 
+    // set timeout
+    struct timeval timeout;
+    timeout.tv_sec = SOCKET_TIMEOUT;
+    timeout.tv_usec = 0;
+    if (setsockopt (client_socket_, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+                sizeof(timeout)) < 0)
+        LOG("setsockopt failed\n");
+
+    if (setsockopt (client_socket_, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+                sizeof(timeout)) < 0)
+        LOG("setsockopt failed\n");
+
     // send a hello world to the server for testing.
     UDP_Package pkg;
     pkg.SetHeader(PK_MSG, id_, WHATEVER_SEQ);
@@ -148,7 +160,7 @@ UDP_Package *Client::ReceiverPKG() {
     recv_bytes = recvfrom(client_socket_, buf, MAX_RECV_BUFFER_SIZE, 0,
                           (sockaddr *)(&conn_addr), &addr_len);
     if (recv_bytes < 0) {
-        LOG("recvfrom failed! error: %s\n", strerror(errno));
+        // LOG("recvfrom failed! error: %s\n", strerror(errno));
         return NULL;
     }
 
@@ -336,6 +348,12 @@ void Client::CheckSeqNumber(uint32_t eof_seq) {
                 }
             }
         }
+    }
+    // got all packages, wait for a while to send remaining ACKs to close the connection
+    uint64_t start_t = NowMicros();
+    while (ElapsedMicros(start_t) < DELAY_CLOSE_TIME*1000000) {
+        LOG("Cooling down to close the connection. Please wait...");
+        ReceiverPKG();
     }
 }
 

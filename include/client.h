@@ -16,6 +16,8 @@
 #define DELAY_MEAN_SECOND  2    // in second.
 #define DELAY_DEV_SECOND   1    // in second.
 #define DELAY_MAX_TIME     5    // in second.
+#define DELAY_CLOSE_TIME   100  // in second.
+#define SOCKET_TIMEOUT     30  // in second.
 #define WHATEVER_SEQ     0xbaba
 #define SLEEPTIME_AFTER_RECV  4     // in second.
 #define CLIENT_PORT  12321
@@ -65,4 +67,3 @@ private:
     int InitSocket();
     std::vector<std::string> GetInputFromUser();
 };
-

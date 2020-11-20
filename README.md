@@ -81,38 +81,47 @@
     - Please see the `.h` and `.cpp` files for the detail of the implementation.
 
 
-    ### Test:
-    #### Basics:
+### Test:
+#### Basics:
 
-    ```
-    ---------------- MENU ------------------------
-    list               list files in the server
-    get <file name>    get the file from the server
-    exit               exit this application
-    ----------------------------------------------
-    ```
-    ```
-    list
-    ...
-    Server:
-    .  ..  README.md  utils.o  .git  .gitignore  server.o  client.o  server  client  Makefile  testfile.txt  include  src  
-    ```
-    ```
-    get testfile.txt
-    ...
-    File has retrived from the server, and written to the local, named: testfile.txt.xx.1605563552246042
-    ```
-    ```
-    exit
-    cai@linprog2.cs.fsu.edu:~/CNT4504-5505-Project2>ls
-    client    README.md  testfile.txt
-    client.o  server     testfile.txt.xx.1605563552246042
-    include   server.o   utils.o
-    Makefile  src
-    ```
+```
+---------------- MENU ------------------------
+list               list files in the server
+get <file name>    get the file from the server
+exit               exit this application
+----------------------------------------------
+```
 
-    #### Error Handling:
-    - `LOST_ERROR_PERCENT = 20, OOS_ERROR_PERCENT = 20, PKG_TTL = 100000000 (100 s)`
+```
+list
+...
+Server:
+.  ..  README.md  utils.o  .git  .gitignore  server.o  client.o  server  client  Makefile  testfile.txt  include  src  
+```
+```
+get testfile.txt
+...
+File has retrived from the server, and written to the local, named: testfile.txt.xx.1605563552246042
+```
+```
+exit
+cai@linprog2.cs.fsu.edu:~/CNT4504-5505-Project2>ls
+client    README.md  testfile.txt
+client.o  server     testfile.txt.xx.1605563552246042
+include   server.o   utils.o
+Makefile  src
+```
+
+#### Error Handling:
+- Three types of errors are handled according to Go-Back-N protocol.
+- `LOST_ERROR_PERCENT = 20, OOS_ERROR_PERCENT = 20, PKG_TTL = 250000000 (25 s)`
+- For reproducibility: Set `srand(1)` in `server.cpp`.
+  After connecting to the server, enter `get testfile.txt` without using `list`.
+- The server side information is the following:
+- send0, lose1, send2, send3, ack0, send4, ack2(ignored), ack3(ignored), ack4(ignored), resend1, resend2, resend3, ack1(window starting at 2), send5, resend4, ack2,
+send6, ack3, send7, ack5(ignored), ack4(window starting at 5), send9(OOS),
+resend5, ack6(ignored), resend6, resend7, ack7(ignored), ack9(ignored), ack5, send8, resend9, ack6, send10, resend7, ack7(window starting at 8), ack8(delayed),
+resend8, resend9, ack9, resend10, ack10, ack7, ack8, ack9, ack10.
 
 
 #### Division of Labors:
