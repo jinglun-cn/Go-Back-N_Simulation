@@ -5,18 +5,18 @@
 #### Date Created: 11/01/2020
 
 #### How to Compile:
-Client: Type `make client` to build the client application.
-Server: Type `make server` to build the server application.
-Both: Type `make all` to build both the client application and the server application.
+- Client: Type `make client` to build the client application.
+- Server: Type `make server` to build the server application.
+- Both: Type `make all` to build both the client application and the server application.
 
 
 #### How to Run:
-Client: Type `./client` to run the client application.
-Server: Type `./server` to run the server application.
+- Client: Type `./client` to run the client application.
+- Server: Type `./server` to run the server application.
 
 
 #### How to Exit:
-Client: Use the `exit` command when prompted with the user interface.
+- Client: Use the `exit` command when prompted with the user interface.
 
 
 #### Files:
