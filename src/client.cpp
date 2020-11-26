@@ -1,3 +1,6 @@
+//
+// Created by Spencer Cain on 11/26/20.
+//
 #include "client.h"
 
 #include <assert.h>
@@ -16,6 +19,8 @@
 static Client *global_client = NULL;
 
 static void sig_int_handler(int sig_num) {
+    // TODO Use sig_num or remove it.
+
     delete global_client;
     exit(0);
 }
@@ -25,10 +30,10 @@ Client::Client() {
     client_socket_ = -1;
 
     memset(server_ip_, 0, 32);
-    printf("Please enter the server IP:\n");
+    printf("Please enter the server IP: ");
     scanf("%s", server_ip_);
-    printf("Please enter the server Port:\n");
-    scanf("%d", &server_port_);
+    printf("Please enter the server Port: ");
+    std::cin >> server_port_;
 
     if (this->InitSocket() != 0) {
         LOG("New Client failed!\n");
@@ -84,25 +89,26 @@ int Client::InitSocket() {
     timeout.tv_sec = SOCKET_TIMEOUT;
     timeout.tv_usec = 0;
     if (setsockopt (client_socket_, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
-                sizeof(timeout)) < 0)
+                    sizeof(timeout)) < 0)
         LOG("setsockopt failed\n");
 
     if (setsockopt (client_socket_, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
-                sizeof(timeout)) < 0)
+                    sizeof(timeout)) < 0)
         LOG("setsockopt failed\n");
 
     // send a hello world to the server for testing.
-    UDP_Package pkg;
-    pkg.SetHeader(PK_MSG, id_, WHATEVER_SEQ);
-    pkg.AppendData("Hello World\n");
-    std::string data = pkg.PackIt();
-    int ret =
-        sendto(client_socket_, data.c_str(), data.size(), 0,
-               (const sockaddr *)(&server_addr_), sizeof(struct sockaddr_in));
-    if (ret < 0) {
-        id_ = 0;
-        LOG("sendto failed! error: %s\n", strerror(errno));
-    }
+    // TEST:
+//    UDP_Package pkg;
+//    pkg.SetHeader(PK_MSG, id_, WHATEVER_SEQ);
+//    pkg.AppendData("Hello World\n");
+//    std::string data = pkg.PackIt();
+//    int ret =
+//            sendto(client_socket_, data.c_str(), data.size(), 0,
+//                   (const sockaddr *)(&server_addr_), sizeof(struct sockaddr_in));
+//    if (ret < 0) {
+//        id_ = 0;
+//        LOG("sendto failed! error: %s\n", strerror(errno));
+//    }
 
     return 0;
 }
@@ -120,8 +126,8 @@ void Client::SendPackageWrapper(UDP_Package *pkg) {
     printf("Simulate timed out delay %lu micro-second after send a package ...\n", (unsigned long)(tt));
     usleep(tt);
     int ret =
-        sendto(client_socket_, data.c_str(), data.size(), 0,
-               (const sockaddr *)(&server_addr_), sizeof(struct sockaddr_in));
+            sendto(client_socket_, data.c_str(), data.size(), 0,
+                   (const sockaddr *)(&server_addr_), sizeof(struct sockaddr_in));
     if (ret < 0) {
         LOG("sendto failed! error: %s\n", strerror(errno));
     }
@@ -133,6 +139,11 @@ std::vector<std::string> Client::GetInputFromUser() {
     std::vector<std::string> cmds;
     char buf[MAX_CMD_LEN];
     memset(buf, 0, MAX_CMD_LEN);
+
+    // Bug fix in first iteration.
+    if (std::cin.peek() == '\n')
+        std::cin.ignore(1);
+
     std::cin.getline(buf, MAX_CMD_LEN);
 
     char *token = strtok(buf, " ");
@@ -385,9 +396,9 @@ void Client::ProcessGotFile(std::string fname) {
     myfile.close();
 
     printf(
-        "\nFile has retrived from the server, and written to the local, named: "
-        "%s\n",
-        new_fname.c_str());
+            "\nFile has retrived from the server, and written to the local, named: "
+            "%s\n",
+            new_fname.c_str());
 }
 
 void Client::ProcessExit() { delete this; }
@@ -417,3 +428,4 @@ int main(int argc, char const *argv[]) {
 
     return 0;
 }
+
