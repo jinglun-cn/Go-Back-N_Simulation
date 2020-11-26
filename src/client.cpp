@@ -1,6 +1,3 @@
-//
-// Created by Spencer Cain on 11/26/20.
-//
 #include "client.h"
 
 #include <assert.h>
