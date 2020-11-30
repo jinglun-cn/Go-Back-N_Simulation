@@ -126,9 +126,3 @@ send6, ack3, send7, ack5(ignored), ack4(window starting at 5), send9(OOS),
 resend5, ack6(ignored), resend6, resend7, ack7(ignored), ack9(ignored), ack5, send8, resend9, ack6, send10, resend7, ack7(window starting at 8), ack8(delayed),
 resend8, resend9, ack9, resend10, ack10, ack7, ack8, ack9, ack10.
 
-
-#### Division of Labors:
-- Jumana Bukhari:
-- Jinglun Cai:
-- Spencer Cain:
-- Yixin Chen:
